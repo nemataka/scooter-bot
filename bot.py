@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import threading
+from flask import Flask
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     filters, ConversationHandler, CallbackQueryHandler
@@ -24,6 +26,16 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# ─── Flask (Render port учун) ───
+flask_app = Flask(__name__)
+
+@flask_app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_flask():
+    flask_app.run(host='0.0.0.0', port=8080)
 
 
 def main():
@@ -95,6 +107,11 @@ def main():
         courier_callback,
         pattern="^(done_|reject_|call_|map_|accept_)"
     ))
+
+    # Flask ni alohida threadda ishga tushirish
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    logger.info("Flask server ишга тушди!")
 
     logger.info("Бот ишга тушди!")
     app.run_polling(allowed_updates=["message", "callback_query"])
