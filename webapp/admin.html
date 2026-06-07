@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1Qadam Admin</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Manrope:wght@400;500;600;800&display=swap');
+
+  :root {
+    --bg: #0d0f14;
+    --surface: #161920;
+    --surface2: #1e2330;
+    --accent: #f5a623;
+    --accent2: #e8401c;
+    --green: #2ecc71;
+    --red: #e74c3c;
+    --blue: #3498db;
+    --text: #e8eaf0;
+    --muted: #7a8099;
+    --border: #2a2f3d;
+    --radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Manrope', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Header */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+
+  .logo span { color: var(--text); }
+
+  /* Stats */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    padding: 16px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 100%;
+    background: var(--accent);
+  }
+
+  .stat-card.green::before { background: var(--green); }
+  .stat-card.red::before { background: var(--red); }
+  .stat-card.blue::before { background: var(--blue); }
+
+  .stat-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .stat-amount {
+    font-size: 12px;
+    color: var(--accent);
+    margin-top: 2px;
+    font-weight: 600;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 16px 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tabs::-webkit-scrollbar { display: none; }
+
+  .tab {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+
+  .tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+  }
+
+  /* Orders */
+  .section { padding: 0 16px 16px; }
+
+  .section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 10px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .order-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 8px;
+    transition: border-color 0.2s;
+  }
+
+  .order-card:active { border-color: var(--accent); }
+
+  .order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .order-id {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .order-status {
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .status-new { background: rgba(52,152,219,0.2); color: var(--blue); }
+  .status-assigned { background: rgba(245,166,35,0.2); color: var(--accent); }
+  .status-completed { background: rgba(46,204,113,0.2); color: var(--green); }
+  .status-cancelled { background: rgba(231,76,60,0.2); color: var(--red); }
+
+  .order-client {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .order-phone {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .order-address {
+    font-size: 12px;
+    color: var(--text);
+    background: var(--surface2);
+    padding: 6px 10px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+  }
+
+  .order-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .order-amount {
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .order-courier {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* Action buttons */
+  .btn-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .btn {
+    flex: 1;
+    padding: 8px;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Manrope', sans-serif;
+    transition: opacity 0.2s;
+  }
+
+  .btn:active { opacity: 0.7; }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-danger { background: rgba(231,76,60,0.2); color: var(--red); border: 1px solid var(--red); }
+
+  /* Couriers */
+  .courier-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .courier-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .courier-info { flex: 1; }
+
+  .courier-name {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  .courier-meta {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .courier-stats {
+    text-align: right;
+  }
+
+  .courier-balance {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .courier-orders-count {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .courier-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    display: inline-block;
+    margin-right: 4px;
+  }
+
+  .courier-status.inactive { background: var(--red); }
+
+  /* Bottom nav */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+  }
+
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    padding: 4px 0;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+  }
+
+  .nav-item.active { opacity: 1; }
+
+  .nav-icon { font-size: 20px; }
+
+  .nav-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .nav-item.active .nav-label { color: var(--accent); }
+
+  /* Pages */
+  .page { display: none; padding-bottom: 80px; }
+  .page.active { display: block; }
+
+  /* Loading */
+  .loading {
+    display: flex;
+    justify-content: center;
+    padding: 40px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+  }
+
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-text { font-size: 14px; }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    display: none;
+    align-items: flex-end;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border-radius: 20px 20px 0 0;
+    padding: 20px;
+    width: 100%;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  .modal-title {
+    font-size: 16px;
+    font-weight: 800;
+    margin-bottom: 16px;
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .courier-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+
+  .courier-option:active { border-color: var(--accent); }
+
+  .format-amount {
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* Badge */
+  .badge {
+    background: var(--accent2);
+    color: white;
+    border-radius: 10px;
+    padding: 2px 7px;
+    font-size: 10px;
+    font-weight: 700;
+    min-width: 18px;
+    text-align: center;
+    display: inline-block;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">1<span>Qadam</span> <small style="font-size:11px;color:var(--muted)">ADMIN</small></div>
+  <div id="admin-name" style="font-size:12px;color:var(--muted)"></div>
+</div>
+
+<!-- PAGE: Bosh sahifa -->
+<div class="page active" id="page-home">
+  <div class="stats-grid" id="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-total">—</div>
+      <div class="stat-label">Jami zakazlar</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-value" id="stat-new">—</div>
+      <div class="stat-label">Yangi</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-assigned">—</div>
+      <div class="stat-label">Jarayonda</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-value" id="stat-completed">—</div>
+      <div class="stat-label">Bajarilgan</div>
+      <div class="stat-amount" id="stat-amount">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: Zakazlar -->
+<div class="page" id="page-orders">
+  <div class="tabs">
+    <div class="tab active" onclick="filterOrders('new', this)">🆕 Yangi</div>
+    <div class="tab" onclick="filterOrders('assigned', this)">🔄 Jarayonda</div>
+    <div class="tab" onclick="filterOrders('completed', this)">✅ Bajarilgan</div>
+    <div class="tab" onclick="filterOrders('cancelled', this)">❌ Bekor</div>
+  </div>
+  <div class="section">
+    <div id="orders-list"><div class="loading">Yuklanmoqda...</div></div>
+  </div>
+</div>
+
+<!-- PAGE: Kuryerlar -->
+<div class="page" id="page-couriers">
+  <div class="section" style="padding-top:16px">
+    <div class="section-title">Faol kuryerlar</div>
+    <div id="couriers-list"><div class="loading">Yuklanmoqda...</div></div>
+  </div>
+</div>
+
+<!-- Bottom nav -->
+<div class="bottom-nav">
+  <div class="nav-item active" onclick="showPage('home', this)">
+    <div class="nav-icon">📊</div>
+    <div class="nav-label">Asosiy</div>
+  </div>
+  <div class="nav-item" onclick="showPage('orders', this)">
+    <div class="nav-icon">📋</div>
+    <div class="nav-label">Zakazlar</div>
+  </div>
+  <div class="nav-item" onclick="showPage('couriers', this)">
+    <div class="nav-icon">🛵</div>
+    <div class="nav-label">Kuryerlar</div>
+  </div>
+</div>
+
+<!-- Modal: Kuryer tanlash -->
+<div class="modal-overlay" id="assign-modal" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">🛵 Kuryer tanlang</div>
+    <div id="modal-couriers"></div>
+  </div>
+</div>
+
+<script>
+  const tg = window.Telegram.WebApp;
+  tg.expand();
+  tg.setHeaderColor('#161920');
+
+  // API base URL — Render URL ingizni yozing
+  const API_BASE = 'https://scooter-bot-kef8.onrender.com';
+
+  let currentOrderId = null;
+  let allCouriers = [];
+
+  // Format amount
+  function fmt(n) {
+    return Number(n || 0).toLocaleString('uz-UZ') + ' so\'m';
+  }
+
+  // Pages
+  function showPage(name, el) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    el.classList.add('active');
+
+    if (name === 'orders') loadOrders('new');
+    if (name === 'couriers') loadCouriers();
+    if (name === 'home') loadStats();
+  }
+
+  // Stats
+  async function loadStats() {
+    try {
+      const r = await fetch(API_BASE + '/api/stats');
+      const d = await r.json();
+      document.getElementById('stat-total').textContent = d.total || 0;
+      document.getElementById('stat-new').textContent = d.new_orders || 0;
+      document.getElementById('stat-assigned').textContent = d.assigned || 0;
+      document.getElementById('stat-completed').textContent = d.completed || 0;
+      document.getElementById('stat-amount').textContent = fmt(d.total_amount);
+    } catch(e) {
+      console.error(e);
+    }
+  }
+
+  // Orders
+  let currentStatus = 'new';
+
+  function filterOrders(status, el) {
+    currentStatus = status;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    loadOrders(status);
+  }
+
+  async function loadOrders(status) {
+    const list = document.getElementById('orders-list');
+    list.innerHTML = '<div class="loading">Yuklanmoqda...</div>';
+    try {
+      const r = await fetch(API_BASE + '/api/orders?status=' + status);
+      const orders = await r.json();
+      if (!orders.length) {
+        list.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Zakazlar yo\'q</div></div>';
+        return;
+      }
+      list.innerHTML = orders.map(o => `
+        <div class="order-card">
+          <div class="order-header">
+            <div class="order-id">#${o.order_id}</div>
+            <div class="order-status status-${o.status}">${statusText(o.status)}</div>
+          </div>
+          <div class="order-client">${o.client_name}</div>
+          <div class="order-phone">📱 ${o.client_phone}</div>
+          <div class="order-address">📍 ${o.delivery_address}</div>
+          ${o.order_details ? `<div class="order-address" style="margin-top:-4px">📝 ${o.order_details}</div>` : ''}
+          <div class="order-footer">
+            <div class="order-amount">${fmt(o.amount)}</div>
+            <div class="order-courier">${o.courier_name ? '🛵 ' + o.courier_name : ''}</div>
+          </div>
+          ${o.status === 'new' ? `
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="openAssign(${o.order_id})">👤 Kuryer belgilash</button>
+            <button class="btn btn-danger" onclick="cancelOrder(${o.order_id})">❌</button>
+          </div>` : ''}
+        </div>
+      `).join('');
+    } catch(e) {
+      list.innerHTML = '<div class="empty"><div class="empty-text">Xato yuz berdi</div></div>';
+    }
+  }
+
+  function statusText(s) {
+    const map = { new: 'Yangi', assigned: 'Jarayonda', completed: 'Bajarildi', cancelled: 'Bekor' };
+    return map[s] || s;
+  }
+
+  // Couriers
+  async function loadCouriers() {
+    const list = document.getElementById('couriers-list');
+    list.innerHTML = '<div class="loading">Yuklanmoqda...</div>';
+    try {
+      const r = await fetch(API_BASE + '/api/couriers');
+      allCouriers = await r.json();
+      if (!allCouriers.length) {
+        list.innerHTML = '<div class="empty"><div class="empty-icon">🛵</div><div class="empty-text">Kuryerlar yo\'q</div></div>';
+        return;
+      }
+      list.innerHTML = allCouriers.map(c => `
+        <div class="courier-card">
+          <div class="courier-avatar">${c.first_name ? c.first_name[0].toUpperCase() : '?'}</div>
+          <div class="courier-info">
+            <div class="courier-name">
+              <span class="courier-status ${c.is_active ? '' : 'inactive'}"></span>
+              ${c.first_name || 'Nomsiz'}
+            </div>
+            <div class="courier-meta">${c.username ? '@' + c.username : 'Username yo\'q'}</div>
+          </div>
+          <div class="courier-stats">
+            <div class="courier-balance">${fmt(c.balance)}</div>
+            <div class="courier-orders-count">✅ ${c.completed || 0} / ${c.total_orders || 0}</div>
+          </div>
+        </div>
+      `).join('');
+    } catch(e) {
+      list.innerHTML = '<div class="empty"><div class="empty-text">Xato yuz berdi</div></div>';
+    }
+  }
+
+  // Assign order
+  function openAssign(orderId) {
+    currentOrderId = orderId;
+    const modal = document.getElementById('modal-couriers');
+    if (!allCouriers.length) {
+      fetch(API_BASE + '/api/couriers').then(r => r.json()).then(c => {
+        allCouriers = c;
+        renderCourierOptions();
+      });
+    } else {
+      renderCourierOptions();
+    }
+    document.getElementById('assign-modal').classList.add('open');
+  }
+
+  function renderCourierOptions() {
+    const modal = document.getElementById('modal-couriers');
+    const active = allCouriers.filter(c => c.is_active);
+    if (!active.length) {
+      modal.innerHTML = '<div class="empty"><div class="empty-text">Faol kuryerlar yo\'q</div></div>';
+      return;
+    }
+    modal.innerHTML = active.map(c => `
+      <div class="courier-option" onclick="assignCourier(${c.user_id})">
+        <div class="courier-avatar" style="width:36px;height:36px;font-size:14px">${c.first_name ? c.first_name[0].toUpperCase() : '?'}</div>
+        <div>
+          <div style="font-weight:700;font-size:14px">${c.first_name || 'Nomsiz'}</div>
+          <div style="font-size:11px;color:var(--muted)">✅ ${c.completed || 0} ta bajarilgan</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function closeModal() {
+    document.getElementById('assign-modal').classList.remove('open');
+    currentOrderId = null;
+  }
+
+  async function assignCourier(courierId) {
+    if (!currentOrderId) return;
+    try {
+      await fetch(API_BASE + '/api/order/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: currentOrderId, courier_id: courierId })
+      });
+      closeModal();
+      tg.showAlert('✅ Kuryer belgilandi!');
+      loadOrders(currentStatus);
+    } catch(e) {
+      tg.showAlert('❌ Xato yuz berdi');
+    }
+  }
+
+  async function cancelOrder(orderId) {
+    tg.showConfirm('Zakazni bekor qilasizmi?', async (confirmed) => {
+      if (!confirmed) return;
+      try {
+        await fetch(API_BASE + '/api/order/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: orderId })
+        });
+        tg.showAlert('❌ Zakaz bekor qilindi');
+        loadOrders(currentStatus);
+      } catch(e) {
+        tg.showAlert('Xato yuz berdi');
+      }
+    });
+  }
+
+  // Init
+  if (tg.initDataUnsafe?.user) {
+    document.getElementById('admin-name').textContent = tg.initDataUnsafe.user.first_name;
+  }
+
+  loadStats();
+</script>
+</body>
+</html>
