@@ -66,7 +66,9 @@ def home():
 
 @flask_app.route('/admin')
 def admin_webapp():
-    return open('webapp/admin.html', encoding='utf-8').read()
+    import os
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    return open(os.path.join(base_dir, 'webapp', 'admin.html'), encoding='utf-8').read()
 
 
 @flask_app.route('/api/stats')
