@@ -1,4 +1,5 @@
 import aiosqlite
+import math
 from config import DB_NAME
 
 
@@ -71,6 +72,60 @@ async def init_db():
                 FOREIGN KEY (order_id) REFERENCES orders(order_id),
                 FOREIGN KEY (courier_id) REFERENCES users(user_id)
             )
+        """)
+
+        # ─── 1. settings, delivery_orders, delivery_tracking жадваллари ───
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
+
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS delivery_orders (
+                delivery_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                courier_id INTEGER,
+                admin_id INTEGER NOT NULL,
+                client_name TEXT,
+                client_phone TEXT,
+                from_address TEXT,
+                to_address TEXT,
+                status TEXT DEFAULT 'new',
+                start_lat REAL,
+                start_lon REAL,
+                end_lat REAL,
+                end_lon REAL,
+                total_km REAL DEFAULT 0,
+                wait_minutes REAL DEFAULT 0,
+                total_price REAL DEFAULT 0,
+                started_at TIMESTAMP,
+                finished_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (courier_id) REFERENCES users(user_id)
+            )
+        """)
+
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS delivery_tracking (
+                track_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                delivery_id INTEGER NOT NULL,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                speed REAL DEFAULT 0,
+                mode TEXT DEFAULT 'moving',
+                recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (delivery_id) REFERENCES delivery_orders(delivery_id)
+            )
+        """)
+
+        await db.execute("""
+            INSERT OR IGNORE INTO settings (key, value) VALUES
+                ('km_price', '2000'),
+                ('wait_free_minutes', '5'),
+                ('wait_price_per_minute', '500'),
+                ('speed_threshold', '5'),
+                ('commission_percent', '15')
         """)
 
         await db.commit()
@@ -361,3 +416,179 @@ async def get_all_deposits():
                ORDER BY d.created_at DESC"""
         )
         return await cursor.fetchall()
+
+
+# ─── SETTINGS ───────────────────────────────────────────
+
+async def get_setting(key: str):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT value FROM settings WHERE key = ?", (key,)
+        )
+        row = await cursor.fetchone()
+        return row[0] if row else None
+
+
+async def set_setting(key: str, value: str):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (key, value)
+        )
+        await db.commit()
+
+
+async def get_all_settings() -> dict:
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute("SELECT key, value FROM settings")
+        rows = await cursor.fetchall()
+        return {row[0]: row[1] for row in rows}
+
+
+# ─── DELIVERY ORDERS ───────────────────────────────────
+
+async def create_delivery_order(courier_id, admin_id, client_name,
+                                 client_phone, from_address, to_address):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            """INSERT INTO delivery_orders
+               (courier_id, admin_id, client_name, client_phone,
+                from_address, to_address)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (courier_id, admin_id, client_name, client_phone,
+             from_address, to_address)
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+
+async def get_delivery_order(delivery_id):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT * FROM delivery_orders WHERE delivery_id = ?",
+            (delivery_id,)
+        )
+        return await cursor.fetchone()
+
+
+async def get_delivery_orders_by_status(status):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT * FROM delivery_orders WHERE status = ? ORDER BY created_at DESC",
+            (status,)
+        )
+        return await cursor.fetchall()
+
+
+async def assign_delivery(delivery_id, courier_id):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE delivery_orders SET courier_id = ?, status = 'assigned' WHERE delivery_id = ?",
+            (courier_id, delivery_id)
+        )
+        await db.commit()
+
+
+async def start_delivery(delivery_id, lat, lon):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            """UPDATE delivery_orders
+               SET status = 'active', start_lat = ?, start_lon = ?,
+                   started_at = CURRENT_TIMESTAMP
+               WHERE delivery_id = ?""",
+            (lat, lon, delivery_id)
+        )
+        await db.commit()
+
+
+async def finish_delivery(delivery_id, total_km, wait_minutes, total_price, lat, lon):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            """UPDATE delivery_orders
+               SET status = 'completed', end_lat = ?, end_lon = ?,
+                   total_km = ?, wait_minutes = ?, total_price = ?,
+                   finished_at = CURRENT_TIMESTAMP
+               WHERE delivery_id = ?""",
+            (lat, lon, total_km, wait_minutes, total_price, delivery_id)
+        )
+        await db.commit()
+
+
+async def update_delivery_status(delivery_id, status):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE delivery_orders SET status = ? WHERE delivery_id = ?",
+            (status, delivery_id)
+        )
+        await db.commit()
+
+
+async def save_tracking_point(delivery_id, lat, lon, speed, mode):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            """INSERT INTO delivery_tracking
+               (delivery_id, latitude, longitude, speed, mode)
+               VALUES (?, ?, ?, ?, ?)""",
+            (delivery_id, lat, lon, speed, mode)
+        )
+        await db.commit()
+
+
+async def get_active_delivery(courier_id):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            """SELECT * FROM delivery_orders
+               WHERE courier_id = ? AND status IN ('active', 'assigned')
+               ORDER BY created_at DESC LIMIT 1""",
+            (courier_id,)
+        )
+        return await cursor.fetchone()
+
+
+async def get_courier_deliveries(courier_id):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT * FROM delivery_orders WHERE courier_id = ? ORDER BY created_at DESC",
+            (courier_id,)
+        )
+        return await cursor.fetchall()
+
+
+# ─── HELPERS ───────────────────────────────────────────
+
+def haversine(lat1, lon1, lat2, lon2) -> float:
+    """Икки нуқта орасидаги масофа (км)"""
+    R = 6371.0
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    return R * 2 * math.asin(math.sqrt(a))
+
+
+# ─── ADMINS ─────────────────────────────────────────
+
+async def get_admin_ids() -> list:
+    """Барча админ ID ларини олиш"""
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT user_id FROM users WHERE role IN ('admin', 'owner')"
+        )
+        rows = await cursor.fetchall()
+        return [row[0] for row in rows]
+
+
+async def add_admin(user_id: int):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE users SET role = 'admin' WHERE user_id = ?", (user_id,)
+        )
+        await db.commit()
+
+
+async def remove_admin(user_id: int):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE users SET role = 'client' WHERE user_id = ?", (user_id,)
+        )
+        await db.commit()
