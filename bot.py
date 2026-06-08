@@ -180,8 +180,136 @@ def api_courier_stats():
     return jsonify(result)
 
 
+# ═══════════════════════════════════════════════════
+# DELIVERY API ENDPOINTS
+# ═══════════════════════════════════════════════════
+
+@flask_app.route('/api/delivery/orders')
+def api_delivery_orders():
+    """Курьернинг юк заказларини олиш"""
+    courier_id = request.args.get('courier_id')
+    status = request.args.get('status', 'assigned')
+    if not courier_id:
+        return jsonify({'error': 'courier_id kerak'}), 400
+    orders = db_query("""
+        SELECT * FROM delivery_orders
+        WHERE courier_id=? AND status=?
+        ORDER BY created_at DESC
+    """, (courier_id, status))
+    return jsonify(orders)
+
+
+@flask_app.route('/api/delivery/start', methods=['POST'])
+def api_delivery_start():
+    """Юк заказни бошлаш"""
+    data = request.json
+    delivery_id = data.get('delivery_id')
+    lat = data.get('lat')
+    lon = data.get('lon')
+    if not delivery_id:
+        return jsonify({'error': 'delivery_id kerak'}), 400
+    db_execute("""
+        UPDATE delivery_orders
+        SET status='active', start_lat=?, start_lon=?,
+            started_at=CURRENT_TIMESTAMP
+        WHERE delivery_id=?
+    """, (lat, lon, delivery_id))
+    return jsonify({'success': True})
+
+
+@flask_app.route('/api/delivery/finish', methods=['POST'])
+def api_delivery_finish():
+    """Юк заказни тугатиш ва нарх ҳисоблаш"""
+    data = request.json
+    delivery_id = data.get('delivery_id')
+    total_km = data.get('total_km', 0)
+    wait_minutes = data.get('wait_minutes', 0)
+    lat = data.get('lat', 0)
+    lon = data.get('lon', 0)
+
+    if not delivery_id:
+        return jsonify({'error': 'delivery_id kerak'}), 400
+
+    # Sozlamalarni olish
+    settings = db_query("SELECT key, value FROM settings")
+    s = {}
+    for row in settings:
+        try:
+            s[row['key']] = float(row['value'])
+        except (ValueError, TypeError):
+            s[row['key']] = row['value'] if row['value'] else 0
+
+    km_price = s.get('km_price', 2000)
+    wait_free = s.get('wait_free_minutes', 5)
+    wait_price = s.get('wait_price_per_minute', 500)
+    commission_pct = s.get('commission_percent', 15)
+
+    km_cost = total_km * km_price
+    billable_wait = max(0, wait_minutes - wait_free)
+    wait_cost = billable_wait * wait_price
+    total_price = km_cost + wait_cost
+    commission = total_price * commission_pct / 100
+
+    db_execute("""
+        UPDATE delivery_orders
+        SET status='completed', end_lat=?, end_lon=?,
+            total_km=?, wait_minutes=?, total_price=?,
+            finished_at=CURRENT_TIMESTAMP
+        WHERE delivery_id=?
+    """, (lat, lon, total_km, wait_minutes, total_price, delivery_id))
+
+    return jsonify({
+        'success': True,
+        'total_km': total_km,
+        'km_cost': km_cost,
+        'wait_minutes': wait_minutes,
+        'billable_wait': billable_wait,
+        'wait_cost': wait_cost,
+        'total_price': total_price,
+        'commission': commission,
+        'commission_percent': commission_pct
+    })
+
+
+@flask_app.route('/api/delivery/track', methods=['POST'])
+def api_delivery_track():
+    """Локацияни кузатиш"""
+    data = request.json
+    delivery_id = data.get('delivery_id')
+    lat = data.get('lat')
+    lon = data.get('lon')
+    speed = data.get('speed', 0)
+    mode = data.get('mode', 'moving')
+
+    if not delivery_id:
+        return jsonify({'error': 'delivery_id kerak'}), 400
+
+    db_execute("""
+        INSERT INTO delivery_tracking
+        (delivery_id, latitude, longitude, speed, mode)
+        VALUES (?, ?, ?, ?, ?)
+    """, (delivery_id, lat, lon, speed, mode))
+
+    return jsonify({'success': True})
+
+
+@flask_app.route('/api/order/complete', methods=['POST'])
+def api_complete_order():
+    """Оддий заказни тугатиш"""
+    data = request.json
+    order_id = data.get('order_id')
+    if not order_id:
+        return jsonify({'error': 'order_id kerak'}), 400
+    db_execute("""
+        UPDATE orders SET status='completed',
+        completed_at=CURRENT_TIMESTAMP
+        WHERE order_id=?
+    """, (order_id,))
+    return jsonify({'success': True})
+
+
 def run_flask():
-    flask_app.run(host='0.0.0.0', port=8080)
+    flask_app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
 
 
 # ═══════════════════════════════════════════════════
@@ -328,7 +456,7 @@ def main():
     # Flask алоҳида threadда
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
-    logger.info("Flask server ишга тушди!")
+    logger.info("Flask server ишга тушди! (http://0.0.0.0:8080)")
 
     logger.info("Бот ишга тушди!")
     app.run_polling(allowed_updates=["message", "callback_query"])
