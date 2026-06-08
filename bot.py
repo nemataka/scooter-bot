@@ -9,7 +9,7 @@ from telegram.ext import (
 )
 from config import BOT_TOKEN, DB_NAME
 from database.db import init_db
-from handlers.start import start
+from handlers.start import start, choose_role, enter_password
 from handlers.admin import (
     start_add_order, get_client_name, get_client_phone,
     get_address, get_details, get_amount,
@@ -27,6 +27,12 @@ from handlers.delivery import (
     show_delivery_orders, delivery_admin_callback,
     delivery_start, delivery_finish,
     handle_live_location, my_deliveries
+)
+from handlers.owner import (
+    add_admin_start, add_admin_id, WAIT_ADMIN_ID,
+    remove_admin_start, remove_admin_id, REMOVE_ADMIN_ID,
+    cmd_admins,
+    cmd_setpassword, cmd_settings
 )
 
 logging.basicConfig(
@@ -62,13 +68,6 @@ def db_execute(query, params=()):
 @flask_app.route('/')
 def home():
     return "Bot is running!"
-
-
-@flask_app.route('/admin')
-def admin_webapp():
-    import os
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    return open(os.path.join(base_dir, 'webapp', 'admin.html'), encoding='utf-8').read()
 
 
 @flask_app.route('/api/stats')
@@ -196,10 +195,43 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # ─── 1. /start ───
-    app.add_handler(CommandHandler("start", start))
+    # ─── 0. Админни ўчириш ConversationHandler ───
+    remove_admin_conv = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("^🗑 Админни ўчириш$"), remove_admin_start)],
+        states={
+            REMOVE_ADMIN_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, remove_admin_id)],
+        },
+        fallbacks=[CommandHandler("start", start)]
+    )
+    app.add_handler(remove_admin_conv)
 
-    # ─── 2. Курьер меню ───
+    # ─── 1. Админ қўшиш ConversationHandler ───
+    add_admin_conv = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("^👑 Админ қўшиш$"), add_admin_start)],
+        states={
+            WAIT_ADMIN_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_admin_id)],
+        },
+        fallbacks=[CommandHandler("start", start)]
+    )
+    app.add_handler(add_admin_conv)
+
+    # ─── 2. Start ConversationHandler ───
+    start_conv = ConversationHandler(
+        entry_points=[CommandHandler("start", start)],
+        states={
+            20: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_role)],
+            21: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_password)],
+        },
+        fallbacks=[CommandHandler("start", start)]
+    )
+    app.add_handler(start_conv)
+
+    # ─── 3. Owner командалари ───
+    app.add_handler(CommandHandler("admins", cmd_admins))
+    app.add_handler(CommandHandler("setpassword", cmd_setpassword))
+    app.add_handler(CommandHandler("settings", cmd_settings))
+
+    # ─── 4. Курьер меню ───
     app.add_handler(MessageHandler(filters.Regex("^📦 Фаол заказларим$"), my_active_orders))
     app.add_handler(MessageHandler(filters.Regex("^📋 Барча заказларим$"), my_all_orders))
     app.add_handler(MessageHandler(filters.Regex("^✅ Бажарилганлар$"), my_completed_orders))
@@ -208,7 +240,7 @@ def main():
     app.add_handler(MessageHandler(filters.Regex("^💰 Баланс$"), show_balance))
     app.add_handler(MessageHandler(filters.Regex("^🚛 Юк ташишларим$"), my_deliveries))
 
-    # ─── 3. Админ меню ───
+    # ─── 5. Админ меню ───
     app.add_handler(MessageHandler(filters.Regex("^📋 Янги заказлар$"), show_orders))
     app.add_handler(MessageHandler(filters.Regex("^🔄 Жараёндагилар$"), show_orders))
     app.add_handler(MessageHandler(filters.Regex("^✅ Бажарилган$"), show_orders))
@@ -219,7 +251,7 @@ def main():
     app.add_handler(MessageHandler(filters.Regex("^💳 Депозитлар$"), show_deposits))
     app.add_handler(MessageHandler(filters.Regex("^🚛 Юк заказлари$"), show_delivery_orders))
 
-    # ─── 4. ConversationHandler: заказ қўшиш ───
+    # ─── 6. ConversationHandler: заказ қўшиш ───
     add_order_conv = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^🆕 Янги заказ қўшиш$"), start_add_order)],
         states={
@@ -236,7 +268,7 @@ def main():
     )
     app.add_handler(add_order_conv)
 
-    # ─── 5. ConversationHandler: депозит қўшиш ───
+    # ─── 7. ConversationHandler: депозит қўшиш ───
     deposit_conv = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^💰 Депозит қўшиш$"), add_deposit_for_courier_start)],
         states={
@@ -250,7 +282,7 @@ def main():
     )
     app.add_handler(deposit_conv)
 
-    # ─── 6. ConversationHandler: юк заказ қўшиш ───
+    # ─── 8. ConversationHandler: юк заказ қўшиш ───
     add_delivery_conv = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^🚛 Янги юк заказ$"), start_add_delivery)],
         states={
@@ -266,10 +298,10 @@ def main():
     )
     app.add_handler(add_delivery_conv)
 
-    # ─── 7. Live Location ───
+    # ─── 9. Live Location ───
     app.add_handler(MessageHandler(filters.LOCATION, handle_live_location))
 
-    # ─── 8. Delivery callback'лар ───
+    # ─── 10. Delivery callback'лар ───
     app.add_handler(CallbackQueryHandler(
         delivery_admin_callback,
         pattern="^(delivery_assign_|delivery_to_|delivery_cancel_)"
@@ -283,7 +315,7 @@ def main():
         pattern="^delivery_finish_"
     ))
 
-    # ─── 9. Асосий callback handler'лар ───
+    # ─── 11. Асосий callback handler'лар ───
     app.add_handler(CallbackQueryHandler(
         admin_callback,
         pattern="^(select_courier_|assign_to_|assign_all|cancel_order$|cancel_|approve_|reject_user_|deposit_|block_courier_|unblock_courier_)"

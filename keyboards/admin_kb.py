@@ -1,15 +1,17 @@
 from telegram import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
-def get_admin_menu():
-    """Админ асосий менюси"""
+def get_admin_menu(is_owner=False):
     keyboard = [
         [KeyboardButton("🆕 Янги заказ қўшиш")],
         [KeyboardButton("📋 Янги заказлар"), KeyboardButton("🔄 Жараёндагилар")],
         [KeyboardButton("✅ Бажарилган"), KeyboardButton("❌ Бекор қилинган")],
         [KeyboardButton("👥 Курьерлар"), KeyboardButton("📊 Статистика")],
         [KeyboardButton("📥 Excel отчёт"), KeyboardButton("💳 Депозитлар")],
-        [KeyboardButton("💰 Депозит қўшиш")]
+        [KeyboardButton("💰 Депозит қўшиш")],
+        [KeyboardButton("🚛 Янги юк заказ"), KeyboardButton("🚛 Юк заказлари")],
     ]
+    if is_owner:
+        keyboard.append([KeyboardButton("👑 Админ қўшиш"), KeyboardButton("🗑 Админни ўчириш")])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def get_cancel_keyboard():
