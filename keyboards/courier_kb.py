@@ -4,6 +4,7 @@ def get_courier_menu():
     """Курьер асосий менюси"""
     keyboard = [
         [KeyboardButton("📦 Фаол заказларим")],
+        [KeyboardButton("🚛 Юк ташишларим")]
         [KeyboardButton("📋 Барча заказларим"), KeyboardButton("📊 Статистикам")],
         [KeyboardButton("✅ Бажарилганлар"), KeyboardButton("❌ Рад этилганлар")],
         [KeyboardButton("💰 Баланс")]

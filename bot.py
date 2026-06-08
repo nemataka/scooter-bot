@@ -2,6 +2,7 @@ import asyncio
 import logging
 import threading
 import sqlite3
+from flask_cors import CORS
 from flask import Flask, jsonify, request
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,

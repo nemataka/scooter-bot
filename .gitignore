@@ -1,0 +1,6 @@
+.env
+scooter.db
+.venv/
+__pycache__/
+*.pyc
+reports/
