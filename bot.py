@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 # FLASK
 # ═══════════════════════════════════════════════════
 flask_app = Flask(__name__)
-
+CORS(flask_app)
 
 def db_query(query, params=()):
     conn = sqlite3.connect(DB_NAME)
